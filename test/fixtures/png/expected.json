@@ -1,0 +1,106 @@
+{
+ "rgb8": {
+  "mode": "RGB",
+  "pixels": "3ba1d4e6f72f6e54c5f47f3299a1c99dd60f676d8ea2cc240b8daeafbfe92e7b",
+  "size": [
+   37,
+   23
+  ]
+ },
+ "rgba8": {
+  "mode": "RGBA",
+  "pixels": "3ba1d4e6f72f6e54c5f47f3299a1c99dd60f676d8ea2cc240b8daeafbfe92e7b",
+  "size": [
+   37,
+   23
+  ]
+ },
+ "gray8": {
+  "mode": "L",
+  "pixels": "0727b217bdb757b0fda865e0fd826d63e3a70e2c28c7854ec0aa713b14149cb9",
+  "size": [
+   37,
+   23
+  ]
+ },
+ "graya8": {
+  "mode": "LA",
+  "pixels": "0727b217bdb757b0fda865e0fd826d63e3a70e2c28c7854ec0aa713b14149cb9",
+  "size": [
+   37,
+   23
+  ]
+ },
+ "gray1": {
+  "mode": "1",
+  "pixels": "f9cd0f8cde75b6c9a2e7bc7cad1a72176fb2340bb795df745aba1dd4b6f7918e",
+  "size": [
+   37,
+   23
+  ]
+ },
+ "palette8": {
+  "mode": "P",
+  "pixels": "6185afd6658026c2545488ce6d05de8d1b52a20fcc6d9ec0297949b874eb4b91",
+  "size": [
+   37,
+   23
+  ]
+ },
+ "palette4": {
+  "mode": "P",
+  "pixels": "ab644005fc28e746d405e377a12587dc4be0a046e90d94cd49a9d9f35bcaa82f",
+  "size": [
+   37,
+   23
+  ]
+ },
+ "palette2": {
+  "mode": "P",
+  "pixels": "de95c2a629b997042da5bc28d46226d094dcd76aed7b1dcb22fec7a0b06b1722",
+  "size": [
+   37,
+   23
+  ]
+ },
+ "palette-trns": {
+  "mode": "P",
+  "pixels": "ab644005fc28e746d405e377a12587dc4be0a046e90d94cd49a9d9f35bcaa82f",
+  "size": [
+   37,
+   23
+  ]
+ },
+ "rgb8-opt": {
+  "mode": "RGB",
+  "pixels": "3ba1d4e6f72f6e54c5f47f3299a1c99dd60f676d8ea2cc240b8daeafbfe92e7b",
+  "size": [
+   37,
+   23
+  ]
+ },
+ "stripped-a": {
+  "mode": "RGB",
+  "pixels": "3ba1d4e6f72f6e54c5f47f3299a1c99dd60f676d8ea2cc240b8daeafbfe92e7b",
+  "size": [
+   37,
+   23
+  ]
+ },
+ "rgb16": {
+  "mode": "RGB",
+  "pixels": "0df8c5809edd122423b628f52b505bc4dd7608bc3a24c239c06daceda2ad7994",
+  "size": [
+   37,
+   23
+  ]
+ },
+ "rgba16": {
+  "mode": "RGBA",
+  "pixels": "d640f162c0e258a3229cf77a1cda070c1e79a5f7bd556b8c7a1cdf8f821d72a0",
+  "size": [
+   37,
+   23
+  ]
+ }
+}

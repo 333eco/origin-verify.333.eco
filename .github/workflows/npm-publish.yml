@@ -1,0 +1,57 @@
+name: Test and publish
+
+# Tests on every push and pull request; publishes @333eco/origin-verify when
+# package.json's version is new on main.
+#
+# WHY THE PUBLISH IS GATED ON THE TESTS: the package's whole value is what it REFUSES. A version whose refusals are untested tells people a forged record is fine.
+#
+# ⚠️ NEEDS NPM_TOKEN — a granular automation token with publish rights on the
+# @333eco scope and 2FA bypass enabled, the same kind as the other @333eco packages'. An
+# interactive OTP cannot be supplied to a workflow; a plain token with 2FA
+# required fails with E403 and nothing else looks wrong.
+#
+# ⚠️ A green publish step is not a published package: npm's registry read can lag
+# the write. Confirm with `npm view @333eco/origin-verify@<version>` before
+# believing either outcome.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: npm ci
+      - run: npm test
+
+  publish:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+      - run: npm ci
+      - name: Publish if this version is new
+        run: |
+          V=$(node -p "require('./package.json').version")
+          if npm view "@333eco/origin-verify@$V" version >/dev/null 2>&1; then
+            echo "@333eco/origin-verify@$V is already published — nothing to do."
+            exit 0
+          fi
+          npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

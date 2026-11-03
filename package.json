@@ -1,0 +1,49 @@
+{
+  "name": "@333eco/origin-verify",
+  "version": "0.1.0",
+  "description": "Checks a B-Origin record with no help from its operator: signatures, its place in the public log, witness cosignatures, RFC 3161 tokens, OpenTimestamps proofs against Bitcoin, and a signer's reveal. Browser or Node, no runtime dependencies.",
+  "license": "CC0-1.0",
+  "author": "Thon Ly",
+  "homepage": "https://github.com/333eco/origin-verify.333.eco#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/333eco/origin-verify.333.eco.git"
+  },
+  "keywords": [
+    "provenance",
+    "transparency-log",
+    "tlog",
+    "rfc3161",
+    "opentimestamps",
+    "passkey",
+    "webauthn",
+    "perceptual-hash",
+    "c2sp"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./index.mjs",
+    "./media": "./media.mjs",
+    "./trust": "./trust.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.mjs",
+    "primitives.mjs",
+    "clocks.mjs",
+    "media.mjs",
+    "trust.mjs",
+    "cli.mjs",
+    "README.md"
+  ],
+  "bin": {
+    "origin-verify": "./cli.mjs"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  }
+}
