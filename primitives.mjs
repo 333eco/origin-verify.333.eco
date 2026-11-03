@@ -64,7 +64,7 @@ export function hmacSha256(key, ...parts) {
 // ── Ed25519 ──────────────────────────────────────────────────────────────────────────────────────────────────────
 // RFC 8032 verification by hand, for browsers whose WebCrypto lacks it (Chrome before 137, and the Android floor is Chrome 113).
 // It handles only public values, so a timing leak gives nothing away.
-const P = 2n ** 255n - 19n, L = 2n ** 252n + 27742317777372353535851937790883648493n, D = 37095705934669439343138083508754565189542113879843219016388785533085940283555n, I = 19681161376707505956807079304988542015446066515923890162744021073123829784752n;
+const P = (1n << 255n) - 19n, L = (1n << 252n) + 27742317777372353535851937790883648493n, D = 37095705934669439343138083508754565189542113879843219016388785533085940283555n, I = 19681161376707505956807079304988542015446066515923890162744021073123829784752n;
 const mod = (a, m = P) => { const r = a % m; return r < 0n ? r + m : r; };
 const pow = (b, e, m = P) => { let r = 1n; b = mod(b, m); while (e > 0n) { if (e & 1n) r = (r * b) % m; b = (b * b) % m; e >>= 1n; } return r; };
 const addPt = ([x1, y1, z1, t1], [x2, y2, z2, t2]) => {
@@ -75,7 +75,7 @@ const mulPt = (s, pt) => { let q = [0n, 1n, 1n, 0n]; while (s > 0n) { if (s & 1n
 const leInt = (b) => { let n = 0n; for (let i = b.length - 1; i >= 0; i--) n = (n << 8n) + BigInt(b[i]); return n; };
 function decodePt(b) {
   if (b.length !== 32) return null;
-  const y = leInt(b) & (2n ** 255n - 1n), sign = b[31] >> 7;
+  const y = leInt(b) & ((1n << 255n) - 1n), sign = b[31] >> 7;
   if (y >= P) return null;
   const y2 = mod(y * y), u = mod(y2 - 1n), v = mod(D * y2 + 1n);
   let x = pow(mod(u * pow(v, P - 2n)), (P + 3n) / 8n);
