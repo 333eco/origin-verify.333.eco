@@ -7,15 +7,18 @@ export default {
   },
   "rpId": "sign.333.eco",
   "webOrigin": "https://sign.333.eco",
-  "witnessQuorum": 4,
-  "witnessLabel": "staging witnesses",
+  // The Witness Network's TESTING list (2026-11-04). These witnesses may reset or disappear, so they are named and NOT counted: no witnessQuorum, so `witnessed` stays false.
+  // A move to staging puts back that list's keys and a quorum. Read from each operator's own page, 2026-11-04.
+  "witnessLabel": "testing witnesses",
   "witnesses": [
     "witness.navigli.sunlight.geomys.org+a3e00fe2+BNy/co4C1Hn1p+INwJrfUlgz7W55dSZReusH/GhUhJ/G",
-    "krabbel.ct.ipng.ch+4b10dbd8+BO4sLOtnhktlqMCejDx9C5LDd+/xZxbmBb6BP9ZD2Def",
-    "witness.gdbsecurity.com+a1398f73+BAbIijGonVIk3ikDac+KKlSm1ELHOzcddhjjB6zB4BNf",
     "markovianprotocol.com/witness+41b8827f+BJKLl8rBYM0oUxSaWh9rjTldTprEpYj/SWVIGgacA9XC",
     "witness.stagemole.eu+67f7aea0+BEqSG3yu9YrmcM3BHvQYTxwFj3uSWakQepafafpUqklv",
-    "staging.witness.transparency.goog/ring-any-bells+2e1a8dc9+BG5JTpLc3FJtwzgh1Uv+Qelz9qeOH2bfWjS1s0s+y4rL"
+    "transparency.dev/DEV:witness-little-garden+d8042a87+BCtusOxINQNUTN5Oj8HObRkh2yHf/MwYaGX4CPdiVEPM",
+    "kladje.ct.ipng.ch+cdfb671b+BH6mAtKyb9gR+D1sL6TSGLbGoRqcX5AXpBgluXmaimp7",
+    "rgdd.se/poc-witness+db03732e+BCjJKlo6BU0xfIb8LutqerIFTWIXEA0L5n3tW3QyPFgG",
+    "witness1.smartit.nu/witness1+a48c820f+BPSFWg9G6KPiO7QPryYO5Xq4oYJJ+kAvLKLSimDhoxMO",
+    "remora.n621.de+da77ade7+BOvN63jn/bLvkieywe8R6UYAtVtNbZpXh34x7onlmtw2"
   ],
   "tsaRoots": {
     "accv-es": [

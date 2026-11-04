@@ -26,7 +26,7 @@ Four states. Each stands alone and none implies another.
 | state | it says | it rests on |
 |---|---|---|
 | `included` | this record is in the tree this checkpoint signs, and the log cannot later remove it unnoticed | the operator's keys and the Merkle proof |
-| `witnessed` | enough outside witnesses cosigned the checkpoint | their signatures. ⚠️ False today: no witness has admitted this log yet, and the result says so |
+| `witnessed` | enough outside witnesses cosigned the checkpoint | their signatures. ⚠️ False today: the log is on the Witness Network's testing list, not yet staging. Testing witnesses may cosign and `witnesses` names them, but they are not counted, because they may reset or disappear |
 | `timestamped` | a checkpoint holding this record existed by this time | each authority's word, one per token |
 | `bitcoin` | a checkpoint holding this record existed by this block | Bitcoin's proof of work |
 

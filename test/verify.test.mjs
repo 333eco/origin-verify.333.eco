@@ -299,3 +299,24 @@ test("a PNG that inflates past what its header allows is refused, not unpacked: 
     assert.equal((await hashFile(bomb)).pixels, undefined, "and a file can still be hashed by its bytes");
     await assert.rejects(decodePng(new Uint8Array(good), { maxPixels: 15 }), /will not open/, "a caller can set a lower limit");
 });
+test("the testing list: every published witness key parses, a cosignature is named, and without a quorum it never counts as witnessed", async () => {
+    assert.equal(trust.witnessQuorum, undefined, "while on the testing list");
+    assert.equal(trust.witnessLabel, "testing witnesses");
+    assert.equal((await checkCheckpoint(cpNote, trust)).ok, true);
+    assert.equal(new Set(trust.witnesses.map((v) => v.split("+")[0])).size, 8);
+    const { publicKey, privateKey } = generateKeyPairSync("ed25519"), raw = publicKey.export({ format: "der", type: "spki" }).subarray(12);
+    const name = "test/witness", type = Buffer.from([4]), id = createHash("sha256").update(`${name}\n`).update(type).update(raw).digest().subarray(0, 4);
+    const vkey = `${name}+${id.toString("hex")}+${Buffer.concat([type, raw]).toString("base64")}`;
+    const w = buildLog([claim("a")]), note = w.files.get("checkpoint").toString(), body = note.slice(0, note.indexOf("\n\n") + 1), time = Buffer.alloc(8);
+    time.writeBigUInt64BE(1000n);
+    const sig = nodeSign(null, Buffer.from(`cosignature/v1\ntime 1000\n${body}`), privateKey);
+    w.files.set("checkpoint", Buffer.from(`${note}— ${name} ${Buffer.concat([id, time, sig]).toString("base64")}\n`));
+    const testing = { ...w.t, witnesses: [vkey], witnessLabel: "testing witnesses" };
+    delete testing.witnessQuorum;
+    const r = await verifyPack(await packRecord(w.get, 0, testing), testing);
+    assert.equal(r.ok, true, r.why);
+    assert.deepEqual(r.witnesses, [name], "the cosignature is seen and named");
+    assert.equal(r.witnessed, false, "and not counted");
+    const counted = { ...testing, witnessQuorum: 1 };
+    assert.equal((await verifyPack(await packRecord(w.get, 0, counted), counted)).witnessed, true, "CONTROL: with a quorum the same cosignature does count");
+});
