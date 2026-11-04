@@ -7,14 +7,23 @@ const SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const MAX_PIXELS = 100_000_000;
 export const isPng = (b) => SIG.every((x, i) => b[i] === x);
 
-async function inflate(data) {
-  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+/** Stops at `limit`: a small file can inflate to gigabytes, and the header already says how big a real one can be. */
+async function inflate(data, limit) {
+  const reader = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate")).getReader(), parts = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > limit) { await reader.cancel().catch(() => {}); throw new Error("a PNG that inflates past what its header allows"); }
+    parts.push(value);
+  }
+  return concat(...parts);
 }
 const ADAM7 = [[0, 0, 8, 8], [4, 0, 8, 8], [0, 4, 4, 8], [2, 0, 4, 4], [0, 2, 2, 4], [1, 0, 2, 2], [0, 1, 1, 2]];
 
 /** Returns { width, height, rgb, alpha } as 8-bit rasters. `rgb` is null for 16-bit gray, which PIL clips rather than reduces, so no hash could match it. */
-export async function decodePng(b) {
+export async function decodePng(b, { maxPixels = MAX_PIXELS } = {}) {
   if (!isPng(b)) throw new Error("not a PNG");
   const dv = new DataView(b.buffer, b.byteOffset, b.length);
   let i = 8, width, height, depth, color, interlace, palette = null, trns = null;
@@ -29,11 +38,12 @@ export async function decodePng(b) {
     else if (type === "IEND") break;
     i += 12 + len;
   }
-  if (!width || !height || !idat.length || width * height > MAX_PIXELS) throw new Error("a PNG this reader will not open");
+  if (!width || !height || !idat.length || width * height > maxPixels) throw new Error("a PNG this reader will not open");
   const channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[color];
   if (!channels || (color === 3 && !palette)) throw new Error("a PNG with an unknown color type");
   const bitsPerPixel = channels * depth, bpp = Math.max(1, bitsPerPixel >> 3);
-  const raw = await inflate(concat(...idat));
+  // The most a real image of this size can need; interlacing repeats a line's filter byte in up to seven passes, so a generous bound covers it.
+  const raw = await inflate(concat(...idat), (Math.ceil((width * bitsPerPixel) / 8) + 1) * height * (interlace === 1 ? 2 : 1) + 1024);
   const rgb = new Uint8Array(width * height * 3), alpha = new Uint8Array(width * height).fill(255);
   let at = 0;
   const pass = (w, h, put) => {
@@ -136,13 +146,13 @@ export async function canvasDecoder(bytes, mime) {
  * The hashes a claim carries. `decode(bytes)` is the caller's own decoder for other image types, returning { width, height, rgb, alpha }: it may give `phash`, never `pixels`.
  * A file that is not a picture, or that nothing can decode, simply has neither: it can still be signed, and found only by its exact bytes.
  */
-export async function hashFile(bytes, { decode } = {}) {
+export async function hashFile(bytes, { decode, maxPixels } = {}) {
   const b = new Uint8Array(bytes);
   const sha = new Uint8Array(await crypto.subtle.digest("SHA-256", b));
   const out = { sha256: hex(sha), bytes: b.length };
   try {
     if (isPng(b)) {
-      const png = await decodePng(b);
+      const png = await decodePng(b, maxPixels ? { maxPixels } : {});
       if (png.rgb) { out.pixels = hex(new Uint8Array(await crypto.subtle.digest("SHA-256", png.rgb))); out.phash = phashOf(png); }
     } else if (decode) {
       const r = await decode(b);

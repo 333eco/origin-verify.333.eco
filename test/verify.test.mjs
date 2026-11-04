@@ -286,3 +286,16 @@ test("a token that fails is named as failing and never counted; a Bitcoin line t
     const wrong = await verifyPack(pack, trust2, { header: async () => header(974381) });
     assert.match(wrong.why, /does not commit/);
 });
+test("a PNG that inflates past what its header allows is refused, not unpacked: a small file must not take the machine down", async () => {
+    const { deflateSync, crc32 } = await import("node:zlib");
+    const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const t = Buffer.from(type); const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([t, data])) >>> 0); return Buffer.concat([len, t, data, crc]); };
+    const ihdr = (w, h) => { const b = Buffer.alloc(13); b.writeUInt32BE(w, 0); b.writeUInt32BE(h, 4); b[8] = 8; b[9] = 2; return b; };
+    const png = (w, h, raw) => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr(w, h)), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
+    const good = png(4, 4, Buffer.alloc((4 * 3 + 1) * 4));
+    assert.equal((await decodePng(new Uint8Array(good))).width, 4, "CONTROL: an honest one opens");
+    const bomb = png(4, 4, Buffer.alloc(64 * 1024 * 1024));
+    assert.ok(bomb.length < 200 * 1024, `the file is small: ${bomb.length} B`);
+    await assert.rejects(decodePng(new Uint8Array(bomb)), /inflates past/);
+    assert.equal((await hashFile(bomb)).pixels, undefined, "and a file can still be hashed by its bytes");
+    await assert.rejects(decodePng(new Uint8Array(good), { maxPixels: 15 }), /will not open/, "a caller can set a lower limit");
+});
