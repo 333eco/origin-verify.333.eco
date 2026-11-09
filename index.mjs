@@ -1,10 +1,12 @@
 // @333eco/origin-verify. CC0. Checks a B-Origin record with no help from its operator: no runtime dependencies, in a browser or in Node.
 // ⚠️ Written apart from the service on purpose: it shares no code with services/b, and it checks proofs with RFC 9162's
 // iterative algorithms where the service builds them with RFC 6962's recursion. One author's blind spots still apply.
-import { b64, b64u, concat, der, derSigToRaw, ed25519, eq, hmacSha256, sha256, text, toB64, toB64u, u32, u64, utf8 } from "./primitives.mjs";
+import { b64, b64u, concat, der, derSigToRaw, ed25519, eq, hex, hmacSha256, sha256, text, toB64, toB64u, u32, u64, utf8 } from "./primitives.mjs";
 import { checkOts, checkTimestamp } from "./clocks.mjs";
 export { checkOts, checkTimestamp } from "./clocks.mjs";
 export { hashFile, decodePng, phashOf, phashDistance } from "./media.mjs";
+import { readEmbedded } from "./embed.mjs";
+export { embedPack, readEmbedded } from "./embed.mjs";
 
 const NODE = new Uint8Array([1]), LEAF = new Uint8Array([0]);
 const odd = (n) => n % 2 === 1;
@@ -373,4 +375,20 @@ export async function verifyPack(pack, trust, { header } = {}) {
     if (bad) return { ok: false, why: `Bitcoin: block ${bad.height} does not commit to this proof` };
   }
   return out;
+}
+
+/**
+ * Checks a file by the proof inside it, with no network. The proof counts only if taking it out gives back exactly the bytes the record names.
+ * ⚠️ `withdrawalChecked` is always false here: a pack is a snapshot, and whether the signer has since withdrawn the record is a question for the log (findRecords).
+ */
+export async function verifyFile(bytes, trust, opts = {}) {
+  const found = readEmbedded(bytes);
+  if (!found) return { ok: false, embedded: false, why: "this file carries no proof" };
+  if (found.damaged) return { ok: false, embedded: true, why: found.damaged };
+  const claim = found.pack?.entry?.claim;
+  if (found.pack?.entry?.t !== "record" || !claim) return { ok: false, embedded: true, why: "the proof is not for a record" };
+  if (hex(sha256(found.original)) !== claim.sha256) return { ok: false, embedded: true, why: "this proof describes a different file" };
+  const out = await verifyPack(found.pack, trust, opts);
+  if (!out.ok) return { ...out, embedded: true };
+  return { ...out, embedded: true, format: found.format, claim, withdrawalChecked: false };
 }

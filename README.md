@@ -44,6 +44,22 @@ Four states. Each stands alone and none implies another.
 
 ⚠️ The DCT hash most people reach for fails on pixel art: half the coefficients of a mirror-symmetric sprite are near zero, so their bits are noise. Measured on 150 pictures × 5 re-encodings, 40 of them symmetric sprites: this hash finds 99.7% of the same picture within distance 8, with 0.8% of different pictures within 8.
 
+## A proof inside the file
+
+A pack can travel inside the PNG or JPEG it describes, so the file can be checked with nothing else and no network:
+
+```js
+import { embedPack, verifyFile } from "@333eco/origin-verify";
+const carried = embedPack(fileBytes, pack);   // a copy with the proof inside; refuses a pack for any other file
+const result = await verifyFile(carried, trust);
+```
+
+The proof sits in a private PNG chunk or in JPEG APP9 segments. The picture isn't touched, and taking the proof out gives back exactly the bytes that were signed, which is how a reader knows it belongs to this file. Embedding again replaces the proof, so a pack can be renewed as it gains its timestamps.
+
+- A pack with an `opening` carries the passkey's signature. The file then proves a passkey signed it, and it shows that passkey's public key: anyone can link every file carrying the same key. Include one only if the signer chooses to.
+- Most platforms strip or re-encode what they receive, and the proof goes with it. Then look the file up by what it still is, below.
+- A carried proof is a snapshot. It can't say whether the signer withdrew the record later, so `verifyFile` reports `withdrawalChecked: false`. Only the log can answer that.
+
 ## Honest limits
 
 - `trust.mjs` pins the log's keys and the timestamp authorities' roots. If you got this package from somewhere you don't trust, nothing here helps. npm provenance links each version to this repository's source.

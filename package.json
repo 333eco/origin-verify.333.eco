@@ -32,6 +32,7 @@
     "primitives.mjs",
     "clocks.mjs",
     "media.mjs",
+    "embed.mjs",
     "trust.mjs",
     "cli.mjs",
     "README.md"

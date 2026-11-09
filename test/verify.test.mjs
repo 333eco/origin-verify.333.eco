@@ -6,7 +6,7 @@ import { createHash, createHmac, generateKeyPairSync, randomBytes, sign as nodeS
 import { readFileSync } from "node:fs";
 import trust from "../trust.mjs";
 import { b64, der, ed25519, ed25519ByHand, hex, hmacSha256, kids, sha256, unhex, utf8 } from "../primitives.mjs";
-import { auditLog, checkCheckpoint, checkConsistency, checkOts, checkTimestamp, consistencyFor, decodePng, findRecords, hashFile, hashLeaf, packRecord, phashDistance, phashOf, proofFor, treeRoot, verifyPack, checkInclusion, canonical } from "../index.mjs";
+import { auditLog, checkCheckpoint, checkConsistency, checkOts, checkTimestamp, consistencyFor, decodePng, findRecords, hashFile, hashLeaf, packRecord, phashDistance, phashOf, proofFor, treeRoot, verifyPack, checkInclusion, canonical, embedPack, readEmbedded, verifyFile } from "../index.mjs";
 
 const fx = (n) => readFileSync(new URL(`./fixtures/${n}`, import.meta.url));
 const flip = (b, at = b.length >> 1) => { const c = Uint8Array.from(b); c[at] ^= 1; return c; };
@@ -319,4 +319,75 @@ test("the testing list: every published witness key parses, a cosignature is nam
     assert.equal(r.witnessed, false, "and not counted");
     const counted = { ...testing, witnessQuorum: 1 };
     assert.equal((await verifyPack(await packRecord(w.get, 0, counted), counted)).witnessed, true, "CONTROL: with a quorum the same cosignature does count");
+});
+
+// ── a proof carried inside the file ──────────────────────────────────────────────────────────────────────────────
+const shaHex = (b) => createHash("sha256").update(b).digest("hex");
+async function signed(file, mime) {
+    const c = { v: 2, sha256: shaHex(file), mime, bytes: file.length, source: "digitalCreation", tool: "my-editor", declared: false };
+    const w = buildLog([claim("first"), c, claim("third")]);
+    return { w, pack: await packRecord(w.get, 1, w.t) };
+}
+for (const [name, mime] of [["art.png", "image/png"], ["art-as.jpg", "image/jpeg"]]) {
+    const file = new Uint8Array(fx(`png/${name}`));
+    test(`${name}: a carried proof checks with no network and takes out to the exact signed bytes`, async () => {
+        const { w, pack } = await signed(file, mime);
+        const out = embedPack(file, pack);
+        assert.notEqual(shaHex(out), shaHex(file), "the file did gain something");
+        const found = readEmbedded(out);
+        assert.equal(shaHex(found.original), shaHex(file));
+        const r = await verifyFile(out, w.t);
+        assert.equal(r.ok, true, r.why);
+        assert.equal(r.index, 1); assert.equal(r.withdrawalChecked, false, "a snapshot never claims the log was asked");
+        assert.equal(shaHex(readEmbedded(embedPack(out, pack)).original), shaHex(file), "renewing replaces the proof, never stacks a second");
+    });
+    test(`${name}: a large proof fits, and every way of breaking it is refused`, async () => {
+        const { w, pack } = await signed(file, mime);
+        const big = { ...pack, stamps: { ...pack.stamps, padding: "x".repeat(200_000) } };
+        const out = embedPack(file, big);
+        assert.equal((await verifyFile(out, w.t)).ok, true, "CONTROL: the large proof checks when nothing is broken");
+        assert.match((await verifyFile(file, w.t)).why, /carries no proof/);
+        const forged = JSON.parse(JSON.stringify(pack)); forged.entry.claim.tool = "someone-else";
+        assert.equal((await verifyFile(rewrap(file, out, forged), w.t)).ok, false, "a changed record");
+        const other = new Uint8Array(file); other[other.length - 3] ^= 1;
+        await assert.rejects(async () => embedPack(other, pack), /different file/);
+        const moved = embedPack(file, pack), at = moved.length - 3; moved[at] ^= 1;
+        assert.equal((await verifyFile(moved, w.t)).ok, false, "a byte of the file changed after embedding");
+    });
+}
+function rewrap(file, _out, pack) { // a proof written by someone who skipped embedPack's own check, to reach verifyFile's
+    const b = Buffer.from(file), json = Buffer.from(JSON.stringify(pack)), label = Buffer.from("b-origin-pack\0");
+    if (b[0] === 0xff) { const head = Buffer.alloc(8); head[0] = 0xff; head[1] = 0xe9; head.writeUInt16BE(2 + label.length + 4 + json.length, 2); const seq = Buffer.from([0, 0, 0, 1]); return new Uint8Array(Buffer.concat([b.subarray(0, 2), head.subarray(0, 4), label, seq, json, b.subarray(2)])); }
+    const type = Buffer.from("orGN"), data = Buffer.concat([label, json]), len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const crc = Buffer.alloc(4); crc.writeUInt32BE(pngCrc(Buffer.concat([type, data])));
+    return new Uint8Array(Buffer.concat([b.subarray(0, b.length - 12), len, type, data, crc, b.subarray(b.length - 12)]));
+}
+function pngCrc(buf) { let c = ~0; for (const x of buf) { c ^= x; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; } return (~c) >>> 0; }
+test("a proof copied onto another file is refused: it describes the file it came from", async () => {
+    const a = new Uint8Array(fx("png/art.png")), b = new Uint8Array(fx("png/art-x4.png"));
+    const { w, pack } = await signed(a, "image/png");
+    await assert.rejects(async () => embedPack(b, pack), /different file/);
+    assert.match((await verifyFile(rewrap(b, null, pack), w.t)).why, /different file/, "and verifyFile refuses it on its own");
+    assert.equal((await verifyFile(rewrap(a, null, pack), w.t)).ok, true, "CONTROL: the same wrapping on the right file passes");
+});
+test("a damaged proof says so; the picture's hashes are untouched by a proof", async () => {
+    const png = new Uint8Array(fx("png/art.png")), { w, pack } = await signed(png, "image/png");
+    const out = embedPack(png, pack), at = Buffer.from(out).indexOf("b-origin-pack") + 40; out[at] ^= 1;
+    assert.match(readEmbedded(out).damaged, /changed/);
+    assert.match((await verifyFile(out, w.t)).why, /changed/, "and the reader is told why");
+    assert.match(readEmbedded(rewrap(embedPack(png, pack), null, pack)).damaged, /more than one/, "two proofs in one file");
+    const [h0, h1] = [await hashFile(png), await hashFile(embedPack(png, pack))];
+    assert.equal(h1.pixels, h0.pixels); assert.equal(h1.phash, h0.phash);
+    const jpg = new Uint8Array(fx("png/art-as.jpg")), j = await signed(jpg, "image/jpeg");
+    const big = Buffer.from(embedPack(jpg, { ...j.pack, stamps: { padding: "x".repeat(200_000) } }));
+    const secondAt = big.indexOf(Buffer.from([0xff, 0xe9]), 4), len = big.readUInt16BE(secondAt + 2);
+    assert.match(readEmbedded(new Uint8Array(Buffer.concat([big.subarray(0, secondAt), big.subarray(secondAt + 2 + len)]))).damaged, /missing/, "a dropped segment");
+    const body = Buffer.from("someone else's APP9"), head = Buffer.alloc(4); head[0] = 0xff; head[1] = 0xe9; head.writeUInt16BE(2 + body.length, 2);
+    const foreign = new Uint8Array(Buffer.concat([Buffer.from(jpg.subarray(0, 2)), head, body, Buffer.from(jpg.subarray(2))]));
+    assert.equal(readEmbedded(foreign), null, "another program's APP9 is not ours");
+    const fj = await signed(foreign, "image/jpeg");
+    assert.equal(shaHex(readEmbedded(embedPack(foreign, fj.pack)).original), shaHex(foreign), "and it survives, byte for byte");
+    assert.throws(() => embedPack(utf8("%PDF-1.7"), { kind: "b-origin-pack", entry: { t: "record", claim: { sha256: shaHex(utf8("%PDF-1.7")) } } }), /PNG or a JPEG/);
+    assert.throws(() => embedPack(png, { kind: "other" }), /not a B-Origin pack/);
+    assert.equal((await verifyFile(embedPack(png, { ...pack, opening: { salt: "AA" } }), w.t)).ok, false, "a false signature inside fails the whole file");
 });
