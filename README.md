@@ -67,4 +67,4 @@ The proof sits in a private PNG chunk or in JPEG APP9 segments. The picture isn'
 - A Bitcoin header proves its own work, but its height is the word of whoever supplied it. The CLI asks blockstream.info; check against your own node if it matters.
 - It verifies. It never grades a person or a work, and it has no opinion on whether something is genuine.
 
-CC0.
+Your choice of CC0-1.0 or Apache-2.0 (see `LICENSE`).
