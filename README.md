@@ -60,6 +60,18 @@ The proof sits in a private PNG chunk or in JPEG APP9 segments. The picture isn'
 - Most platforms strip or re-encode what they receive, and the proof goes with it. Then look the file up by what it still is, below.
 - A carried proof is a snapshot. It can't say whether the signer withdrew the record later, so `verifyFile` reports `withdrawalChecked: false`. Only the log can answer that.
 
+## A receipt inside the file
+
+A record joins the log at its next checkpoint, so the moment a file is signed there is no proof yet, only the record, signed by the log's record key. A file can carry that:
+
+```js
+import { embedReceipt, verifyFile } from "@333eco/origin-verify";
+const carried = embedReceipt(fileBytes, entry);   // `entry` is the signed record; refuses one for any other file
+const { ok, receipt } = await verifyFile(carried, trust);   // ok is FALSE; receipt is { index, witnessedAt } when its signature is good
+```
+
+A receipt shows, with no network, that the log's record key signed for exactly this file, and when. It is not a proof that the record is in the log, so `ok` stays false. `embedPack` replaces it once the proof exists, and a receipt never replaces a proof.
+
 ## Honest limits
 
 - `trust.mjs` pins the log's keys and the timestamp authorities' roots. If you got this package from somewhere you don't trust, nothing here helps. npm provenance links each version to this repository's source.

@@ -92,6 +92,19 @@ export function readEmbedded(bytes) {
  */
 export function embedPack(bytes, pack) {
   if (pack?.kind !== "b-origin-pack" || pack.entry?.t !== "record") throw new TypeError("not a B-Origin pack for a record");
+  return carry(bytes, pack);
+}
+/**
+ * A copy of the file with its RECEIPT inside: the signed record itself, the moment it exists, before the log's next checkpoint can prove it is there.
+ * It shows the log's record key signed for exactly this file at that time. ⛔ It is not a proof: verifyFile answers `ok: false` with a `receipt`, so
+ * nobody mistakes one for the other. embedPack replaces it when the proof exists; a receipt never replaces a proof.
+ */
+export function embedReceipt(bytes, entry) {
+  if (entry?.t !== "record" || typeof entry.witnessSig !== "string") throw new TypeError("not a signed record");
+  if (readEmbedded(new Uint8Array(bytes))?.pack?.kind === "b-origin-pack") throw new Error("this file already carries a proof");
+  return carry(bytes, { kind: "b-origin-receipt", v: 1, entry });
+}
+function carry(bytes, pack) {
   const b = new Uint8Array(bytes), had = readEmbedded(b);
   if (had?.damaged) throw new Error(`can't renew: ${had.damaged}`);
   const base = had ? had.original : b;

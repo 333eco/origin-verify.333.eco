@@ -6,7 +6,7 @@ import { checkOts, checkTimestamp } from "./clocks.mjs";
 export { checkOts, checkTimestamp } from "./clocks.mjs";
 export { hashFile, decodePng, phashOf, phashDistance } from "./media.mjs";
 import { readEmbedded } from "./embed.mjs";
-export { embedPack, readEmbedded } from "./embed.mjs";
+export { embedPack, embedReceipt, readEmbedded } from "./embed.mjs";
 
 const NODE = new Uint8Array([1]), LEAF = new Uint8Array([0]);
 const odd = (n) => n % 2 === 1;
@@ -388,6 +388,11 @@ export async function verifyFile(bytes, trust, opts = {}) {
   const claim = found.pack?.entry?.claim;
   if (found.pack?.entry?.t !== "record" || !claim) return { ok: false, embedded: true, why: "the proof is not for a record" };
   if (hex(sha256(found.original)) !== claim.sha256) return { ok: false, embedded: true, why: "this proof describes a different file" };
+  if (found.pack.kind === "b-origin-receipt") {
+    // ⛔ Never ok: a receipt says the record key signed for this file, and nothing about the log. A caller that reads only `ok` is not misled.
+    if (found.pack.v !== 1 || !(await checkWitnessSignature(found.pack.entry, trust))) return { ok: false, embedded: true, why: "the receipt's signature is not the log's" };
+    return { ok: false, embedded: true, format: found.format, claim, receipt: { index: found.pack.entry.index, witnessedAt: found.pack.entry.witnessedAt }, withdrawalChecked: false, why: "a receipt: signed by the log's record key, not yet shown to be in the log" };
+  }
   const out = await verifyPack(found.pack, trust, opts);
   if (!out.ok) return { ...out, embedded: true };
   return { ...out, embedded: true, format: found.format, claim, withdrawalChecked: false };

@@ -6,7 +6,7 @@ import { createHash, createHmac, generateKeyPairSync, randomBytes, sign as nodeS
 import { readFileSync } from "node:fs";
 import trust from "../trust.mjs";
 import { b64, der, ed25519, ed25519ByHand, hex, hmacSha256, kids, sha256, unhex, utf8 } from "../primitives.mjs";
-import { auditLog, checkCheckpoint, checkConsistency, checkOts, checkTimestamp, consistencyFor, decodePng, findRecords, hashFile, hashLeaf, packRecord, phashDistance, phashOf, proofFor, treeRoot, verifyPack, checkInclusion, canonical, embedPack, readEmbedded, verifyFile } from "../index.mjs";
+import { auditLog, checkCheckpoint, checkConsistency, checkOts, checkTimestamp, consistencyFor, decodePng, embedReceipt, findRecords, hashFile, hashLeaf, packRecord, phashDistance, phashOf, proofFor, treeRoot, verifyPack, checkInclusion, canonical, embedPack, readEmbedded, verifyFile } from "../index.mjs";
 
 const fx = (n) => readFileSync(new URL(`./fixtures/${n}`, import.meta.url));
 const flip = (b, at = b.length >> 1) => { const c = Uint8Array.from(b); c[at] ^= 1; return c; };
@@ -391,3 +391,27 @@ test("a damaged proof says so; the picture's hashes are untouched by a proof", a
     assert.throws(() => embedPack(png, { kind: "other" }), /not a B-Origin pack/);
     assert.equal((await verifyFile(embedPack(png, { ...pack, opening: { salt: "AA" } }), w.t)).ok, false, "a false signature inside fails the whole file");
 });
+
+// ── a receipt carried inside the file ────────────────────────────────────────────────────────────────────────────
+for (const [name, mime] of [["art.png", "image/png"], ["art-as.jpg", "image/jpeg"]]) {
+    const file = new Uint8Array(fx(`png/${name}`));
+    test(`${name}: a receipt shows the record key signed for this file, is never called a proof, and gives way to one`, async () => {
+        const { w, pack } = await signed(file, mime), out = embedReceipt(file, pack.entry), r = await verifyFile(out, w.t);
+        assert.equal(shaHex(readEmbedded(out).original), shaHex(file), "taking it out gives back the signed bytes");
+        assert.equal(r.ok, false, "\u26d4 never ok: a caller that reads only `ok` is not misled"); assert.deepEqual(r.receipt, { index: 1, witnessedAt: pack.entry.witnessedAt }); assert.match(r.why, /not yet shown to be in the log/); assert.equal(r.claim.sha256, shaHex(file)); assert.equal(r.withdrawalChecked, false);
+        assert.match((await verifyPack(readEmbedded(out).pack, w.t)).why, /not a B-Origin pack/, "and an older reader refuses it");
+        const proved = embedPack(out, pack);
+        assert.equal((await verifyFile(proved, w.t)).ok, true, "the proof replaces it"); assert.equal(shaHex(readEmbedded(proved).original), shaHex(file));
+        assert.throws(() => embedReceipt(proved, pack.entry), /already carries a proof/, "a receipt never replaces a proof");
+        assert.equal(shaHex(embedReceipt(out, pack.entry)), shaHex(out), "renewing a receipt changes nothing");
+    });
+    test(`${name}: a receipt that isn't this file's, or isn't the log's, shows nothing`, async () => {
+        const { w, pack } = await signed(file, mime), bad = async (entry, why) => { const r = await verifyFile(rewrap(file, null, { kind: "b-origin-receipt", v: 1, entry }), w.t); assert.equal(r.receipt, undefined, why); assert.equal(r.ok, false, why); return r; };
+        assert.ok((await verifyFile(rewrap(file, null, { kind: "b-origin-receipt", v: 1, entry: pack.entry }), w.t)).receipt, "CONTROL: the same wrapping, unchanged, shows it");
+        await bad({ ...pack.entry, claim: { ...pack.entry.claim, source: "digitalCapture" } }, "a changed record"); await bad({ ...pack.entry, witnessedAt: "2020-01-01T00:00:00.000Z" }, "a changed time"); await bad({ ...pack.entry, kid: "nobody" }, "a key that isn't the log's"); await bad({ ...pack.entry, witnessSig: "AA" }, "a signature that isn't one"); await bad({ ...pack.entry, index: "1" }, "an index that isn't a number");
+        assert.equal((await verifyFile(rewrap(file, null, { kind: "b-origin-receipt", v: 2, entry: pack.entry }), w.t)).receipt, undefined, "a later kind of receipt is not read as this one");
+        const other = new Uint8Array([...file]); other[other.length - 3] ^= 1;
+        assert.throws(() => embedReceipt(other, pack.entry), /different file/); assert.throws(() => embedReceipt(file, { t: "withdrawal" }), /not a signed record/); assert.throws(() => embedReceipt(file, { ...pack.entry, witnessSig: undefined }), /not a signed record/);
+        assert.match((await bad(pack.entry.claim.sha256 ? { ...pack.entry, claim: { ...pack.entry.claim, sha256: "0".repeat(64) } } : pack.entry, "another file's")).why, /different file/);
+    });
+}
