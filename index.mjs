@@ -163,7 +163,12 @@ export async function checkReveal(entry, opening, trust) {
   if (toB64u(challenge) !== entry.claimCommitment) return fail("the challenge does not bind this claim");
   let cd;
   try { cd = JSON.parse(text(raw.clientDataJSON)); } catch { return fail("bad client data"); }
-  if (cd.type !== "webauthn.get" || cd.origin !== trust.webOrigin || cd.challenge !== entry.claimCommitment) return fail("the assertion was made elsewhere or for something else");
+  // Version 3: the record names its press, inside the log's signature. A press made in the B-PoH app's own screen (shown "app")
+  // carries an app origin the trust file must list; every other press carries sign.333.eco's — a passkey, every version-2 record,
+  // and an app key pressed through the phone's passkey sheet (shown "site"), whose origin the browser writes.
+  const appPress = entry.v >= 3 && entry.press?.key === "b-poh" && entry.press?.shown === "app";
+  const originOk = appPress ? Array.isArray(trust.appOrigins) && trust.appOrigins.includes(cd.origin) : cd.origin === trust.webOrigin;
+  if (cd.type !== "webauthn.get" || !originOk || cd.challenge !== entry.claimCommitment) return fail("the assertion was made elsewhere or for something else");
   const auth = raw.authenticatorData;
   if (auth.length < 37 || !eq(auth.subarray(0, 32), sha256(utf8(trust.rpId)))) return fail("the assertion names another site");
   if ((auth[32] & 0x05) !== 0x05) return fail("the passkey's owner was not present and verified");

@@ -32,6 +32,12 @@ Four states. Each stands alone and none implies another.
 
 **What a record does not say:** who imagined the work, or that one person holds one account. Without a signer's reveal it says *the operator witnessed this claim at this time and cannot later remove it*. With the reveal, *a passkey whose public key is given here signed exactly this claim*.
 
+**Version-3 records** name their press, inside the log's signature: `press: { key: "passkey" }`, or for a key held by the B-PoH app
+`{ key: "b-poh", unlock, shown }` (how it was unlocked; whose screen showed the words). A revealed press must carry the origin its
+press allows: a press made in the app's own screen (`shown: "app"`) one of the trust file's `appOrigins` — none is listed yet, so such
+a reveal is refused until the app ships — and every other press sign.333.eco's, including an app key pressed through the phone's
+passkey sheet, whose origin the browser writes. Version-2 records read exactly as before.
+
 ## Finding a file after its metadata is gone
 
 | field | what it is | survives |
