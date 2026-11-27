@@ -38,6 +38,15 @@ press allows: a press made in the app's own screen (`shown: "app"`) one of the t
 a reveal is refused until the app ships — and every other press sign.333.eco's, including an app key pressed through the phone's
 passkey sheet, whose origin the browser writes. Version-2 records read exactly as before.
 
+**Key statements and revocations** (b-poh-statements §5, §6.1). A press made with a B-PoH app key may travel with a *key statement*:
+what sign.333.eco found, when the key was enrolled, about where the key lives and what unlocks it, signed by the key statement key
+(the trust file's `keyStatementKeys`, never a record key). `checkKeyStatement(statement, entry, opening, trust, revocations)`, called
+after `checkReveal` passed, answers for that press: `covered: true` (no revocation reaches the press's minute), `covered: false` with
+both dates of the revocation that reaches it, or `covered: null` when the log was not read (never read as covered). It returns
+`declared` apart from `attested`: a declared field is the app's word, and `sensorsPresent` lists sensors the phone HAS, never which one
+unlocks the key. `findRevocations(get, size, trust)` reads the log's `revoke` entries; a holder's revocation reveals through
+`checkReveal` like a record. None of it says who held the phone.
+
 ## Finding a file after its metadata is gone
 
 | field | what it is | survives |

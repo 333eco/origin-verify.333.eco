@@ -158,7 +158,10 @@ export async function checkReveal(entry, opening, trust) {
   if (toB64u(commitment) !== entry.assertionCommitment) return fail("the opening does not match the record's commitment");
   const challenge = entry.t === "record"
     ? sha256(utf8("b-origin/claim/v1\0"), raw.nonce, sha256(utf8(canonical(entry.claim))))
-    : entry.t === "withdraw" ? sha256(utf8("b-origin/withdraw/v1\0"), raw.nonce, u64(entry.target)) : null;
+    : entry.t === "withdraw" ? sha256(utf8("b-origin/withdraw/v1\0"), raw.nonce, u64(entry.target))
+    // A holder's revocation (b-poh-statements §5): one passkey press bound to EVERY key the entry names, in order, and the date.
+    : entry.t === "revoke" && entry.by === "holder" && Array.isArray(entry.keys) && typeof entry.compromised === "string"
+      ? sha256(utf8("b-origin/revoke/v1\0"), raw.nonce, u32(entry.keys.length), ...entry.keys.map((k) => lp(b64u(String(k)))), lp(utf8(entry.compromised))) : null;
   if (!challenge) return fail("nothing to reveal in this entry");
   if (toB64u(challenge) !== entry.claimCommitment) return fail("the challenge does not bind this claim");
   let cd;
@@ -177,6 +180,43 @@ export async function checkReveal(entry, opening, trust) {
   if (!good) return fail("the passkey's signature does not verify");
   return { ok: true, passkeyPublicKey: opening.credentialPublicKey };
 }
+// ── key statements and revocations (b-poh-statements §5, §6.1) ────────────────────────────────────────────────────────────────
+/** A key ID: the SHA-256 of the COSE public key a proof's opening carries (`credentialPublicKey`, base64url-decoded). */
+export const keyIdOf = (cosePublicKey) => toB64u(sha256(cosePublicKey));
+/** Every revocation among these entries whose witness signature verifies. ⛔ Read the log to its latest checkpoint first (auditLog). */
+export async function revocationsIn(entries, trust) {
+  const out = [];
+  for (const e of entries) if (e?.t === "revoke" && Array.isArray(e.keys) && typeof e.compromised === "string" && (await checkWitnessSignature(e, trust))) out.push(e);
+  return out;
+}
+export async function findRevocations(get, size, trust) { return revocationsIn((await readEntries(get, size)).map((b) => JSON.parse(text(b))), trust); }
+/**
+ * What a key statement lets a checker say about ONE b-poh press (§6.1, §9.5). Call it after `checkReveal(entry, opening)` passed.
+ * `revocations`: from findRevocations; `null` when the log could not be read → `covered: null`, never read as covered.
+ * The answer is about the KEY when the press was made, never about who held the phone (§1); `declared` is the app's word and is
+ * returned apart from `attested`, never as attested.
+ */
+export async function checkKeyStatement(statement, entry, opening, trust, revocations) {
+  const fail = (why) => ({ ok: false, why });
+  if (!statement || statement.t !== "key" || statement.v !== 1 || typeof statement.sig !== "string") return fail("not a key statement");
+  const spki = trust.keyStatementKeys?.[statement.kid];
+  if (!spki) return fail("the key statement's key is not one the trust file lists for key statements");
+  const { sig, ...rest } = statement;
+  let good = false;
+  try { good = await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, await importP256(b64(spki)), b64u(sig), concat(utf8("b-origin/key/v1\0"), utf8(canonical(rest)))); } catch { good = false; }
+  if (!good) return fail("the key statement's signature does not verify");
+  if (statement.key !== keyIdOf(b64u(String(opening?.credentialPublicKey ?? "")))) return fail("a key statement that doesn't belong to this press");
+  if (!(entry?.v >= 3 && entry.press?.key === "b-poh")) return fail("this record was not pressed with a B-PoH app key");
+  if (entry.press.unlock !== statement.attested?.unlock) return fail("the record's unlock is not one this key allows");
+  if (!(Date.parse(statement.checked) <= Date.parse(entry.witnessedAt))) return fail("the key statement is dated after the press");
+  const base = { ok: true, key: statement.key, checked: statement.checked, attested: statement.attested, declared: statement.declared };
+  if (!Array.isArray(revocations)) return { ...base, covered: null, why: "the key couldn't be checked just now: the log was not read to its latest checkpoint" };
+  const hits = revocations.filter((r) => r.keys.includes(statement.key) && Date.parse(r.compromised) <= Date.parse(entry.witnessedAt))
+    .sort((a, b) => Date.parse(a.compromised) - Date.parse(b.compromised));
+  if (hits.length) return { ...base, covered: false, revoked: { compromised: hits[0].compromised, known: hits[0].witnessedAt, by: hits[0].by, index: hits[0].index } };
+  return { ...base, covered: true };
+}
+
 /** SPEC §6.4: which of these entries carry this person's tag. Anything here they did not make is a forgery to report. */
 export function findMine(tagKey, entries) {
   const key = b64u(tagKey), out = [];

@@ -5,6 +5,11 @@ export default {
   "recordKeys": {
     "k1-1": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEBJbkbZoh6NVkspuIZKGXnOs25DxF331TbbGqhK1j2rtsWIZI5x6Ze+jo4mc3kNcqnJFnpUGlOoVu0zexPo0WzQ=="
   },
+  // K12, the key statement key (b-poh-statements §6.1): created 2026-11-26 (sign.333.eco KEYS.md Ceremony 3), SPKI SHA-256 b7612d5c…48b0.
+  // ⛔ Apart from recordKeys on purpose: a record key never signs a key statement, and this key never signs a log entry.
+  "keyStatementKeys": {
+    "k12-1": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEgFEqWgp0FhU+uOphnSUK3+CvM5jr8Iem/Z8jB64cpQFUQe/CuA5ZfsjRKPYxOFS0bOXKqE15eg0BUXyEfgq+lg=="
+  },
   "rpId": "sign.333.eco",
   "webOrigin": "https://sign.333.eco",
   // The Witness Network's TESTING list (2026-11-04). These witnesses may reset or disappear, so they are named and NOT counted: no witnessQuorum, so `witnessed` stays false.
